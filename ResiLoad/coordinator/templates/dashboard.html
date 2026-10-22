@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResiLoad - Distributed System Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        async function fetchData() {
+            try {
+                // Fetch Workers
+                const wRes = await fetch('/api/workers');
+                const workers = await wRes.json();
+                const container = document.getElementById('worker-grid');
+                
+                if (workers.length === 0) {
+                    container.innerHTML = `<p class="text-gray-400 col-span-full text-center py-4">No worker nodes connected.</p>`;
+                } else {
+                    container.innerHTML = '';
+                    workers.forEach(w => {
+                        const isAlive = w.status === 'Alive';
+                        const statusColor = isAlive ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white';
+                        container.innerHTML += `
+                            <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg">
+                                <div class="flex justify-between items-center mb-3">
+                                    <h3 class="font-bold text-gray-100">${w.worker_id}</h3>
+                                    <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full ${statusColor}">${w.status}</span>
+                                </div>
+                                <p class="text-xs text-gray-400 mb-3">Port: <span class="font-mono text-gray-200">${w.port}</span></p>
+                                <div class="space-y-2 text-xs">
+                                    <div>CPU: ${w.cpu}%</div>
+                                    <div class="w-full bg-gray-700 rounded-full h-2"><div class="bg-indigo-500 h-2 rounded-full" style="width: ${w.cpu}%"></div></div>
+                                    <div>RAM: ${w.ram}%</div>
+                                    <div class="w-full bg-gray-700 rounded-full h-2"><div class="bg-cyan-500 h-2 rounded-full" style="width: ${w.ram}%"></div></div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                // Fetch Tasks
+                const tRes = await fetch('/api/tasks');
+                const tasks = await tRes.json();
+                const tContainer = document.getElementById('task-list');
+                tContainer.innerHTML = tasks.length === 0 ? '<p class="text-gray-500 text-sm">No tasks submitted yet.</p>' : '';
+                tasks.forEach(t => {
+                    tContainer.innerHTML += `
+                        <div class="bg-gray-900 border border-gray-800 p-4 rounded-lg flex justify-between items-center text-sm">
+                            <div>
+                                <span class="text-indigo-400 font-mono font-bold">[Task #${t.task_id}]</span> 
+                                <span class="text-gray-300 ml-2">Payload: <b>${t.data}</b></span>
+                                <div class="text-xs text-gray-500 mt-1">Executed by: <span class="text-emerald-400">${t.worker}</span> | Result: ${t.result}</div>
+                            </div>
+                            <span class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-full font-medium">${t.status}</span>
+                        </div>
+                    `;
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        async function submitTask(event) {
+            event.preventDefault();
+            const input = document.getElementById('task-input');
+            const data = input.value;
+            await fetch('/api/submit_task', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data })
+            });
+            input.value = '';
+            fetchData();
+        }
+
+        setInterval(fetchData, 2000);
+        window.onload = fetchData;
+    </script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-8">
+    <div class="max-w-6xl mx-auto space-y-8">
+        <header class="border-b border-gray-800 pb-4 flex justify-between items-center">
+            <h1 class="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">ResiLoad Distributed Cluster</h1>
+            <span class="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 font-medium">● Coordinator Online</span>
+        </header>
+
+        <!-- Submit Task Section -->
+        <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl shadow-xl">
+            <h2 class="text-lg font-semibold mb-4 text-gray-200">Submit Distributed Task</h2>
+            <form onsubmit="submitTask(event)" class="flex gap-4">
+                <input type="text" id="task-input" placeholder="Enter task data (e.g., Job-Alpha-100)" required 
+                    class="flex-1 bg-gray-950 border border-gray-700 rounded-xl px-4 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-indigo-600/20">
+                    Dispatch Task
+                </button>
+            </form>
+        </div>
+
+        <!-- Workers Grid -->
+        <div>
+            <h2 class="text-lg font-semibold mb-4 text-gray-200">Active Worker Nodes</h2>
+            <div id="worker-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+        </div>
+
+        <!-- Task Logs -->
+        <div>
+            <h2 class="text-lg font-semibold mb-4 text-gray-200">Task Execution Logs</h2>
+            <div id="task-list" class="space-y-3"></div>
+        </div>
+    </div>
+</body>
+</html>
